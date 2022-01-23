@@ -64,6 +64,7 @@ end
 function collide_map(obj,aim,flag)
 	--obj = table needs x,y,w,h
 	--aim = left,right,up,down
+	--up and down hitboxes are shorter in order to fix wall sticking
 	
 	local x=obj.x local y=obj.y
 	local w=obj.w local h=obj.h
@@ -85,7 +86,7 @@ function collide_map(obj,aim,flag)
 	
 	elseif aim=="down" then
 		x1=x+2   y1=y+h
-		x2=x+w-3 y2=y+h
+		x2=x+w-3 y2=y+h+1
 	end
 	
 	--pixels to tiles
@@ -133,7 +134,7 @@ function p_update()
 	end
 	
 	--jump
-	if btn(❎)
+	if btnp(❎)
 	and p.landed then
 		p.dy-=p.boost
 		p.landed=false
@@ -151,7 +152,7 @@ function p_update()
 			p.landed=true
 			p.falling=false
 			p.dy=0
-			p.y-=((p.y+p.h+1)%8)-1
+			--p.y-=((p.y+p.h+1)%8)-1
 		end
 	elseif p.dy<0 then
 		p.jumping=true
