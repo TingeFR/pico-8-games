@@ -152,7 +152,7 @@ function p_update()
 			p.landed=true
 			p.falling=false
 			p.dy=0
-			--p.y-=((p.y+p.h+1)%8)-1
+			p.y-=((p.y+p.h+1)%8)-1
 		end
 	elseif p.dy<0 then
 		p.jumping=true
