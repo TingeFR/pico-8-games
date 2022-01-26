@@ -23,17 +23,17 @@ end
 world = {
 	friction=0.9,
 	gravity=3,
-	columns=16,
 	rows=16,
-	tile=8,
+	columns=16,
+	t_size=8,
 }
 function world:new(o)
 	o = o or {}
 	setmetatable(o, self)
 	self.collider=collider:new()
 	self.player=player:new()
-	self.height=self.tile*self.rows
-	self.width=self.tile*self.columns
+	self.height=self.t_size*self.rows
+	self.width=self.t_size*self.columns
 	self.__index=self
 	return o
 end
@@ -44,23 +44,27 @@ function world:collideobj(obj)
 	if obj:gettop()<0 then obj:settop(0) obj.vel_y=0
 	elseif obj:getbottom()>self.height then obj:setbottom(self.height) obj.vel_y=0 obj.jumping=false end
 
-	local value=0
-	local top=flr(obj:gettop()/self.tile)
-	local left=flr(obj:getleft()/self.tile)
-	local right=flr(obj:getright()/self.tile)
-	local bottom=flr(obj:getbottom()/self.tile)
+	local value=0 local top=0 local left=0 local right=0 local bottom=0
 	
+	top=flr(obj:gettop()/self.t_size)
+	left=flr(obj:getleft()/self.t_size)
 	value=col_map(top,left)
-	self.collider:collide(value,obj,left*self.tile,top*self.tile,self.tile)
+	self.collider:collide(value,obj,left*self.t_size,top*self.t_size,self.t_size)
 
+	top=flr(obj:gettop()/self.t_size)
+	right=flr(obj:getright()/self.t_size)
 	value=col_map(top,right)
-	self.collider:collide(value,obj,right*self.tile,top*self.tile,self.tile)
+	self.collider:collide(value,obj,right*self.t_size,top*self.t_size,self.t_size)
 
+	bottom=flr(obj:getbottom()/self.t_size)
+	left=flr(obj:getleft()/self.t_size)
 	value=col_map(bottom,left)
-	self.collider:collide(value,obj,left*self.tile,bottom*self.tile,self.tile)
+	self.collider:collide(value,obj,left*self.t_size,bottom*self.t_size,self.t_size)
 
+	bottom=flr(obj:getbottom()/self.t_size)
+	right=flr(obj:getright()/self.t_size)
 	value=col_map(bottom,right)
-	self.collider:collide(value,obj,right*self.tile,bottom*self.tile,self.tile)
+	self.collider:collide(value,obj,right*self.t_size,bottom*self.t_size,self.t_size)
 end
 function world:update()
 	self.player.vel_y+=self.gravity
@@ -128,36 +132,36 @@ function collider:collide(value,obj,t_x,t_y,t_size)
 		if self:colleft(obj,t_x) then return end
 		if self:colright(obj,t_x+t_size) then return end
 		self:colbottom(obj,t_y+t_size)
-	else return end
+	end
 end
-function collider:coltop(obj,tile)
-	if (obj:getbottom()>tile) and (obj:getoldbottom()<=tile) then
-		obj:setbottom(tile-0.01)
+function collider:coltop(obj,t_top)
+	if (obj:getbottom()>t_top) and (obj:getoldbottom()<=t_top) then
+		obj:setbottom(t_top-0.01)
 		obj.vel_y=0
 		obj.jumping=false
 		return true
 	end
 	return false
 end
-function collider:colbottom(obj,tile)
-	if (obj:gettop()<tile) and (obj:getoldtop()>=tile) then
-		obj:settop(tile)
+function collider:colbottom(obj,t_bottom)
+	if (obj:gettop()<t_bottom) and (obj:getoldtop()>=t_bottom) then
+		obj:settop(t_bottom)
 		obj.vel_y=0
 		return true
 	end
 	return false
 end
-function collider:colleft(obj,tile)
-	if (obj:getright()>tile) and (obj:getoldright()<=tile) then
-		obj:setright(tile-0.01) --.01 to fix round issue
+function collider:colleft(obj,t_left)
+	if (obj:getright()>t_left) and (obj:getoldright()<=t_left) then
+		obj:setright(t_left-0.01) --.01 to fix round issue
 		obj.vel_x=0
 		return true
 	end
 	return false
 end
-function collider:colright(obj,tile)
-	if (obj:getleft()<tile) and (obj:getoldleft()>=tile) then
-		obj:setleft(tile)
+function collider:colright(obj,t_right)
+	if (obj:getleft()<t_right) and (obj:getoldleft()>=t_right) then
+		obj:setleft(t_right)
 		obj.vel_x=0
 		return true
 	end
@@ -197,7 +201,7 @@ function object:setoldleft(x) self.x_old=x end
 function object:setoldright(x) self.x_old=x-self.width end
 function object:setoldtop(y) self.y_old=y end
 
-player=object:new({x=-59,y=59,width=8,height=8})
+player=object:new({x=0,y=0,width=8,height=8})
 function player:new(o)
 	o = o or {}
 	setmetatable(o, self)
@@ -228,7 +232,7 @@ function player:update()
 	if btn(❎) then self:jump() end
 end
 function player:draw()
-	spr(self.spr,flr(self.x),flr(self.y),1,1)
+	spr(self.spr,self.x,self.y)
 end
 
 function _init()
