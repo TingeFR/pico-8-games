@@ -1,234 +1,233 @@
 pico-8 cartridge // http://www.pico-8.com
 version 34
 __lua__
---variables
+--objects
+--game
+game = {}
+function game:new(o)
+	o = o or {}
+	setmetatable(o, self)
+	self.world=world:new()
+	self.__index=self
+	return o
+end
+function game:update()
+	self.world:update()
+end
+
+--world
+world = {
+	friction=0.9,
+	gravity=3,
+	columns=12,
+	rows=9,
+	tile=8,
+}
+function world:new(o)
+	o = o or {}
+	setmetatable(o, self)
+	self.collider=collider:new()
+	self.player=player:new()
+	self.height=self.tile*self.rows
+	self.width=self.tile*self.columns
+	self.__index=self
+	return o
+end
+function world:collideobj(obj)
+	--block obj to world boundaries
+	if obj:getleft()<0 then obj:setleft(0) obj.vel_x=0
+	elseif obj:getright()>self.width then obj:setright(self.width) obj.vel_x=0 end
+	if obj:gettop()<0 then obj:settop(0) obj.vel_y=0
+	elseif obj:getbottom()>self.height then obj:setbottom(self.height) obj.vel_y=0 obj.jumping=false end
+
+	local value=0
+	local top=flr(obj:gettop()/self.tile)
+	local left=flr(obj:getleft()/self.tile)
+	local right=flr(obj:getright()/self.tile)
+	local bottom=flr(obj:getbottom()/self.tile)
+	
+	value=col_map(top,left)
+	self.collider:collide(value,obj,left*self.tile,top*self.tile,self.tile)
+
+	value=col_map(top,right)
+	self.collider:collide(value,obj,right*self.tile,top*self.tile,self.tile)
+
+	value=col_map(bottom,left)
+	self.collider:collide(value,obj,left*self.tile,bottom*self.tile,self.tile)
+
+	value=col_map(bottom,right)
+	self.collider:collide(value,obj,right*self.tile,bottom*self.tile,self.tile)
+end
+function world:update()
+	self.player.vel_y+=self.gravity
+	self.player:update()
+
+	self.player.vel_x*=self.friction
+	self.player.vel_y*=self.friction
+
+	self:collideobj(self.player)
+end
+
+--collider
+collider = {}
+function collider:new(o)
+	o = o or {}
+	setmetatable(o, self)
+	self.__index=self
+	return o
+end
+function collider:collide(value,obj,t_x,t_y,t_size)
+	if value==1 then self:coltop(obj,t_y)
+	elseif value==2 then self:colright(obj,t_x+t_size)
+	elseif value==3 then
+		if self:coltop(obj,t_y) then return end
+		self:colright(obj,t_x+t_size)
+	elseif value==4 then self:colbottom(obj,t_y+t_size)
+	elseif value==5 then
+		if self:coltop(obj,t_y) then return end
+		self:colbottom(obj,t_y+t_size)
+	elseif value==6 then
+		if self:colright(obj,t_x+t_size) then return end
+		self:colbottom(obj,t_y+t_size)
+	elseif value==7 then
+		if self:coltop(obj,t_y) then return end
+		if self:colright(obj,t_x+t_size) then return end
+		self:colbottom(obj,t_y+t_size)
+	elseif value==8 then self:colleft(obj,t_x)
+	elseif value==9 then
+		if self:coltop(obj,t_y) then return end
+		self:colleft(obj,t_x)
+	elseif value==10 then
+		if self:colleft(obj,t_x) then return end
+		self:colright(obj,t_x+t_size)
+	elseif value==11 then
+		if self:coltop(obj,t_y) then return end
+		if self:colleft(obj,t_x) then return end
+		self:colright(obj,t_x+t_size)
+	elseif value==12 then
+		if self:colleft(obj,t_x) then return end
+		self:colbottom(obj,t_y+t_size)
+	elseif value==13 then
+		if self:coltop(obj,t_y) then return end
+		if self:colleft(obj,t_x) then return end
+		self:colbottom(obj,t_y+t_size)
+	elseif value==14 then
+		if self:colleft(obj,t_x) then return end
+		if self:colright(obj,t_x+t_size) then return end
+		self:colbottom(obj,t_y+t_size)
+	elseif value==15 then
+		if self:coltop(obj,t_y) then return end
+		if self:colleft(obj,t_x) then return end
+		if self:colright(obj,t_x+t_size) then return end
+		self:colbottom(obj,t_y+t_size)
+	else return end
+end
+function collider:coltop(obj,tile)
+	if obj:getbottom()>tile and obj:getoldbottom()<=tile then
+		obj:setbottom(tile-0.01)
+		obj.vel_y=0
+		obj.jumping=false
+		return true
+	end
+	return false
+end
+function collider:colbottom(obj,tile)
+	if obj:gettop()<tile and obj:getoldtop()>=tile then
+		obj:settop(tile)
+		obj.vel_y=0
+		return true
+	end
+	return false
+end
+function collider:colleft(obj,tile)
+	if obj:getright()>tile and obj:getoldright()<=tile then
+		obj:setright(tile-0.01)
+		obj.vel_x=0
+		return true
+	end
+	return false
+end
+function collider:colright(obj,tile)
+	if obj:getleft()<tile and obj:getoldleft()>=tile then
+		obj:setleft(tile)
+		obj.vel_x=0
+		return true
+	end
+	return false
+end
+
+--object
+object = {
+	x=0,
+	y=0,
+	width=0,
+	height=0,
+}
+function object:new(o)
+	o = o or {}
+	setmetatable(o, self)
+	self.x_old=self.x
+	self.y_old=self.y
+	self.__index=self
+	return o
+end
+function object:getbottom() return self.y+self.height end
+function object:getbottom() return self.y+self.height end
+function object:getleft() return self.x end
+function object:getright() return self.x+self.width end
+function object:gettop() return self.y end
+function object:getoldbottom() return self.y_old+self.height end
+function object:getoldleft() return self.x_old end
+function object:getoldright() return self.x_old+self.width end
+function object:getoldtop() return self.y_old end
+function object:setbottom(y) self.y=y-self.height end
+function object:setleft(x) self.x=x end
+function object:setright(x) self.x=x-self.width end
+function object:settop(y) self.y=y end
+function object:setoldbottom(y) self.y_old=y-self.height end
+function object:setoldleft(x) self.x_old=x end
+function object:setoldright(x) self.x_old=x-self.width end
+function object:setoldtop(y) self.y_old=y end
+
+player=object:new({x=-59,y=59,width=8,height=8})
+function player:new(o)
+	o = o or {}
+	setmetatable(o, self)
+	self.spr=1
+	self.jumping=true
+	self.vel_x=0
+	self.vel_y=0
+	self.__index=self
+	return o
+end
+function player:jump()
+	if not self.jumping then
+		self.jumping=true
+		self.vel_y-=20
+	end
+end
+function player:moveleft() self.vel_x-=0.5 end
+function player:moveright() self.vel_x+=0.5 end
+function player:update()
+	self.x_old=self.x
+	self.y_old=self.y
+	self.x+=self.vel_x
+	self.y+=self.vel_y
+end
 
 function _init()
-	p={
-		sp=1,
-		x=59,
-		y=59,
-		w=8,
-		h=8,
-		flp=false,
-		dx=0,
-		dy=0,
-		max_dx=2,
-		max_dy=3,
-		acc=0.5,
-		boost=4,
-		anim=0,
-		running=false,
-		jumping=false,
-		falling=false,
-		sliding=false,
-		landed=false,
-	}
-	
-	gravity=0.3
-	friction=0.85
-	
-	--simple camera
-	cam_x=0
-	
-	--map limits
-	map_start=0
-	map_end=1024
-end
--->8
---update and draw
-function _update()
-	p_update()
-	p_animate()
-	
-	--simple camera
-	cam_x=p.x-64+(p.w/2)
-	if cam_x<map_start then
-		cam_x=map_start
-	end
-	if cam_x>map_end-128 then
-		cam_x=map_end-128
-	end
-	camera(cam_x,0)
+	game1=game:new()
+	print(game1.world.player.x)
 end
 
-
-function _draw()
-	cls()
-	map(0,0)
-	spr(p.sp,p.x,p.y,1,1,p.flp)
-end
--->8
---collisions
-
-function collide_map(obj,aim,flag)
-	--obj = table needs x,y,w,h
-	--aim = left,right,up,down
-	--up and down hitboxes are shorter in order to fix wall sticking
-	
-	local x=obj.x local y=obj.y
-	local w=obj.w local h=obj.h
-	
-	local x1=0 local y1=0
-	local x2=0 local y2=0
-	
-	if aim=="left" then
-		x1=x-1 y1=y
-		x2=x   y2=y+h-1
-	
-	elseif aim=="right" then
-		x1=x+w-1  y1=y
-		x2=x+w    y2=y+h-1
-	
-	elseif aim=="up" then
-		x1=x+2   y1=y-1
-		x2=x+w-3 y2=y
-	
-	elseif aim=="down" then
-		x1=x+2   y1=y+h
-		x2=x+w-3 y2=y+h+1
-	end
-	
-	--pixels to tiles
-	x1/=8 y1/=8
-	x2/=8 y2/=8
-	
-	if fget(mget(x1,y1), flag)
-	or fget(mget(x2,y2), flag)
-	or fget(mget(x2,y1), flag)
-	or fget(mget(x2,y2), flag) then
-		return true
-	else
-		return false
-	end
-	
-end
--->8
---player
-
-function p_update()
-	--physics
-	p.dy+=gravity
-	p.dx*=friction
-	
-	--controls
-	if btn(⬅️) then
-		p.dx-=p.acc
-		p.running=true
-		p.flp=true
-	end
-	if btn(➡️) then
-		p.dx+=p.acc
-		p.running=true
-		p.flp=false
-	end
-	
-	--slide
-	if p.running
-	and not btn(⬅️)
-	and not btn(➡️)
-	and not p.falling
-	and not p.jumping then
-		p.running=false
-		p.sliding=true
-	end
-	
-	--jump
-	if btn(❎)
-	and p.landed then
-		p.dy-=p.boost
-		p.landed=false
-	end
-	
-	-- check col ⬆️ and ⬇️
-	if p.dy>0 then
-		p.falling=true
-		p.landed=false
-		p.jumping=false
-		
-		p.dy=limit_speed(p.dy,p.max_dy)
-		
-		if collide_map(p,"down",0) then
-			p.landed=true
-			p.falling=false
-			p.dy=0
-			p.y-=((p.y+p.h+1)%8)-1
-		end
-	elseif p.dy<0 then
-		p.jumping=true
-		if collide_map(p,"up",1) then
-			p.dy=0
-		end
-	end
-	
-	-- check col ⬅️ and ➡️
-	if p.dx<0 then
-		
-		p.dx=limit_speed(p.dx,p.max_dx)
-		
-		if collide_map(p,"left",1) then
-			p.dx=0
-		end
-	elseif p.dx>0 then
-	
-		p.dx=limit_speed(p.dx,p.max_dx)
-	
-		if collide_map(p,"right",1) then
-			p.dx=0
-		end
-	end
-	
-	--stop sliding
-	if p.sliding then
-		if abs(p.dx) <.2
-		or p.running then
-			p.dx=0
-			p.sliding=false
-		end
-	end
-	
-	p.x+=p.dx
-	p.y+=p.dy
-	
-	--limit player to map
-	if p.x<map_start then
-		p.x=map_start
-	end
-	if p.x>map_end-p.w then
-		p.x=map_end-p.w
-	end
-	
-end
-
-function p_animate()
-	if p.jumping then
-		p.sp=7
-	elseif p.falling then
-		p.sp=8
-	elseif p.sliding then
-		p.sp=9
-	elseif p.running then
-		if time()-p.anim>.1 then
-			p.anim=time()
-			p.sp+=1
-			if p.sp>6 then
-				p.sp=3				
-			end
-		end
-	--player idle
-	else
-		if time()-p.anim>.3 then
-			p.anim=time()
-			p.sp+=1
-			if p.sp>2 then
-				p.sp=1				
-			end
-		end
-	end
-end
-
-function limit_speed(num,m)
-	return mid(-m,num,m)
+--utils
+function col_map(x,y)
+	local sum=0
+	if fget(mget(x,y),0) then sum+=1 end
+	if fget(mget(x,y),1) then sum+=2 end
+	if fget(mget(x,y),2) then sum+=4 end
+	if fget(mget(x,y),3) then sum+=8 end
+	return sum
 end
 __gfx__
 00000000066000600660006006660006060600066006000660660006006600066660000660006000000000000000000000000000000000000000000000000000
