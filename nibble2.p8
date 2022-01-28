@@ -23,7 +23,8 @@ end
 
 --world
 world={
-    gravity=4,
+	gravity=1,
+	friction=0.85
 }
 function world:new(o)
 	o = o or {}
@@ -35,7 +36,14 @@ function world:new(o)
 end
 function world:update()
     self.player:update()
-    self.player.newy+=self.gravity
+	self.player.dy+=self.gravity
+	self.player.dx*=self.friction
+
+	self.player.dx=limit_speed(self.player.dx,self.player.max_dx)
+	self.player.dy=limit_speed(self.player.dy,self.player.max_dy)
+
+    self.player.newx+=self.player.dx
+	self.player.newy+=self.player.dy
 
 	local playercol=self.collider:getcol(self.player)
 
@@ -73,22 +81,18 @@ function collider:new(o)
 end
 function collider:getcol(obj)
 	local col={bottom=false,left=false,top=false,right=false}
-	--bottom
 	if fget(mget(obj.x/8,(obj.newy+obj.h-1)/8),0)
 	  or fget(mget((obj.x+obj.w-1)/8,(obj.newy+obj.h-1)/8),0) then
 		col.bottom=true
 	end
-	--left
 	if fget(mget(obj.newx/8,obj.y/8),1)
 	  or fget(mget(obj.newx/8,(obj.y+obj.h-1)/8),1) then
 		col.left=true
 	end
-	--top
 	if fget(mget(obj.x/8,obj.newy/8),2)
 	  or fget(mget((obj.x+obj.w-1)/8,obj.newy/8),2) then
 		col.top=true
 	end
-	--right
 	if fget(mget((obj.newx+obj.w-1)/8,obj.y/8),3)
 	  or fget(mget((obj.newx+obj.w-1)/8,(obj.y+obj.h-1)/8),3) then
 		col.right=true
@@ -100,6 +104,10 @@ end
 object={
 	x=0,
 	y=0,
+	dx=0,
+	dy=0,
+	max_dx=2,
+	max_dy=3,
 	newx=0,
 	newy=0,
 	w=0,
@@ -118,17 +126,17 @@ function player:new(o)
 	o = o or {}
 	setmetatable(o, self)
 	self.spr=1
-    self.acc=3
-    self.jmp=12
+    self.acc=0.5
+    self.jmp=3
 	self.__index=self
 	return o
 end
 function player:update()
 	self.newx=self.x
 	self.newy=self.y
-    if btn(⬅️) then self.newx-=self.acc end
-	if btn(➡️) then self.newx+=self.acc end
-	if btn(❎) then self.newy-=self.jmp end
+    if btn(⬅️) then self.dx-=self.acc end
+	if btn(➡️) then self.dx+=self.acc end
+	if btnp(❎) then self.dy-=self.jmp end
 end
 function player:draw()
 	spr(self.spr,self.x,self.y)
@@ -145,6 +153,11 @@ end
 
 function _draw()
     game1:draw()
+end
+
+--utils
+function limit_speed(num,m)
+	return mid(-m,num,m)
 end
 __gfx__
 00000000066000600660006006660006060600066006000660660006006600066660000660006000000000000000000000000000000000000000000000000000
