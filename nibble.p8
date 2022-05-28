@@ -1,232 +1,235 @@
 pico-8 cartridge // http://www.pico-8.com
 version 34
 __lua__
---variables
+--nibble quest
+--by tinge
 
-function _init()
-	p={
-		sp=1,
-		x=59,
-		y=59,
-		w=8,
-		h=8,
-		flp=false,
-		dx=0,
-		dy=0,
-		max_dx=2,
-		max_dy=3,
-		acc=0.5,
-		boost=4,
-		anim=0,
-		running=false,
-		jumping=false,
-		falling=false,
-		sliding=false,
-		landed=false,
-	}
-	
-	gravity=0.3
-	friction=0.85
-	
-	--simple camera
-	cam_x=0
-	
-	--map limits
-	map_start=0
-	map_end=1024
+--game
+game={}
+function game:new(o)
+	o = o or {}
+	setmetatable(o, self)
+	self.world=world:new()
+	self.__index=self
+	return o
 end
--->8
---update and draw
-function _update()
-	p_update()
-	p_animate()
-	
-	--simple camera
-	cam_x=p.x-64+(p.w/2)
-	if cam_x<map_start then
-		cam_x=map_start
-	end
-	if cam_x>map_end-128 then
-		cam_x=map_end-128
-	end
-	camera(cam_x,0)
+function game:update()
+	self.world:update()
 end
-
-
-function _draw()
+function game:draw()
 	cls()
+	self.world:draw()
+end
+
+--world
+world={
+	gravity=0.3,
+	friction=0.85
+}
+function world:new(o)
+	o = o or {}
+	setmetatable(o, self)
+	self.player=player:new()
+	self.collider=collider:new()
+	self.__index=self
+	return o
+end
+function world:update()
+	self.player:update()
+
+	self.player.dy+=self.gravity
+	self.player.dx*=self.friction
+
+	self.player.newx=self.player.x+self.player.dx
+	self.player.newy=self.player.y+self.player.dy
+	local playercol=self.collider:getcol(self.player)
+
+	if self.player.dy>0 then
+		self.player.falling=true
+		self.player.landed=false
+		self.player.jumping=false
+
+		self.player.dy=limit_speed(self.player.dy,self.player.max_dy)
+
+		if playercol.bottom then
+			self.player.landed=true
+			self.player.falling=false
+			self.player.dy=0
+		end
+	elseif self.player.dy<0 then
+		self.player.jumping=true
+		if playercol.top then
+			self.player.dy=0
+		end
+	end
+
+	if self.player.dx<0 then
+		self.player.dx=limit_speed(self.player.dx,self.player.max_dx)
+		if playercol.left then
+			self.player.dx=0
+		end
+	elseif self.player.dx>0 then
+		self.player.dx=limit_speed(self.player.dx,self.player.max_dx)
+		if playercol.right then
+			self.player.dx=0
+		end
+	end
+
+	--stop sliding
+	if self.player.sliding then
+		if abs(self.player.dx) <.2
+		or self.player.running then
+			self.player.dx=0
+			self.player.sliding=false
+		end
+	end
+
+	self.player.newx=self.player.x+self.player.dx
+	self.player.newy=self.player.y+self.player.dy
+	playercol=self.collider:getcol(self.player)
+
+	if playercol.bottom then
+		self.player.y=flr(self.player.newy/8)*8
+	end
+	if playercol.top then
+		self.player.y=(flr(self.player.newy/8)+1)*8
+	end
+	if playercol.left then
+		self.player.x=(flr(self.player.newx/8)+1)*8
+	end
+	if playercol.right then
+		self.player.x=flr(self.player.newx/8)*8
+	end
+	if not playercol.bottom and not playercol.top then
+		self.player.y=self.player.newy
+	end
+	if not playercol.left and not playercol.right then
+		self.player.x=self.player.newx
+	end
+end
+function world:draw()
 	map(0,0)
-	spr(p.sp,p.x,p.y,1,1,p.flp)
+	self.player:draw()
 end
--->8
---collisions
 
-function collide_map(obj,aim,flag)
-	--obj = table needs x,y,w,h
-	--aim = left,right,up,down
-	--up and down hitboxes are shorter in order to fix wall sticking
-	
-	local x=obj.x local y=obj.y
-	local w=obj.w local h=obj.h
-	
-	local x1=0 local y1=0
-	local x2=0 local y2=0
-	
-	if aim=="left" then
-		x1=x-1 y1=y
-		x2=x   y2=y+h-1
-	
-	elseif aim=="right" then
-		x1=x+w-1  y1=y
-		x2=x+w    y2=y+h-1
-	
-	elseif aim=="up" then
-		x1=x+2   y1=y-1
-		x2=x+w-3 y2=y
-	
-	elseif aim=="down" then
-		x1=x+2   y1=y+h
-		x2=x+w-3 y2=y+h+1
-	end
-	
-	--pixels to tiles
-	x1/=8 y1/=8
-	x2/=8 y2/=8
-	
-	if fget(mget(x1,y1), flag)
-	or fget(mget(x2,y2), flag)
-	or fget(mget(x2,y1), flag)
-	or fget(mget(x2,y2), flag) then
-		return true
-	else
-		return false
-	end
-	
+--collider
+collider={}
+function collider:new(o)
+	o = o or {}
+	setmetatable(o, self)
+	self.__index=self
+	return o
 end
--->8
+function collider:getcol(obj)
+	local col={bottom=false,left=false,top=false,right=false}
+	if fget(mget(obj.x/8,(obj.newy+obj.h-1)/8),0)
+	  or fget(mget((obj.x+obj.w-1)/8,(obj.newy+obj.h-1)/8),0) then
+		col.bottom=true
+	end
+	if fget(mget(obj.newx/8,obj.y/8),1)
+	  or fget(mget(obj.newx/8,(obj.y+obj.h-1)/8),1) then
+		col.left=true
+	end
+	if fget(mget(obj.x/8,obj.newy/8),2)
+	  or fget(mget((obj.x+obj.w-1)/8,obj.newy/8),2) then
+		col.top=true
+	end
+	if fget(mget((obj.newx+obj.w-1)/8,obj.y/8),3)
+	  or fget(mget((obj.newx+obj.w-1)/8,(obj.y+obj.h-1)/8),3) then
+		col.right=true
+	end
+	return col
+end
+
+--game object
+object={
+	x=0,
+	y=0,
+	dx=0,
+	dy=0,
+	max_dx=2,
+	max_dy=3,
+	newx=0,
+	newy=0,
+	w=0,
+	h=0,
+}
+function object:new(o)
+	o = o or {}
+	setmetatable(o, self)
+	self.__index=self
+	return o
+end
+
 --player
-
-function p_update()
-	--physics
-	p.dy+=gravity
-	p.dx*=friction
-	
-	--controls
+player=object:new({x=0,y=0,w=8,h=8})
+function player:new(o)
+	o = o or {}
+	setmetatable(o, self)
+	self.spr=1
+	self.acc=0.5
+	self.jmp=3
+	self.flip=false
+	self.running=false
+	self.jumping=false
+	self.falling=false
+	self.sliding=false
+	self.landed=false
+	self.__index=self
+	return o
+end
+function player:update()
+	--controls: left
 	if btn(⬅️) then
-		p.dx-=p.acc
-		p.running=true
-		p.flp=true
+		self.dx-=self.acc
+		self.running=true
+		self.flip=true
 	end
+
+	--controls: right
 	if btn(➡️) then
-		p.dx+=p.acc
-		p.running=true
-		p.flp=false
+		self.dx+=self.acc
+		self.running=true
+		self.flip=false
 	end
-	
+
 	--slide
-	if p.running
+	if self.running
 	and not btn(⬅️)
 	and not btn(➡️)
-	and not p.falling
-	and not p.jumping then
-		p.running=false
-		p.sliding=true
+	and not self.falling
+	and not self.jumping then
+		self.running=false
+		self.sliding=true
 	end
-	
+
 	--jump
 	if btn(❎)
-	and p.landed then
-		p.dy-=p.boost
-		p.landed=false
+	and self.landed then
+		self.dy-=self.jmp
+		self.landed=false
 	end
-	
-	-- check col ⬆️ and ⬇️
-	if p.dy>0 then
-		p.falling=true
-		p.landed=false
-		p.jumping=false
-		
-		p.dy=limit_speed(p.dy,p.max_dy)
-		
-		if collide_map(p,"down",0) then
-			p.landed=true
-			p.falling=false
-			p.dy=0
-			p.y-=((p.y+p.h+1)%8)-1
-		end
-	elseif p.dy<0 then
-		p.jumping=true
-		if collide_map(p,"up",1) then
-			p.dy=0
-		end
-	end
-	
-	-- check col ⬅️ and ➡️
-	if p.dx<0 then
-		
-		p.dx=limit_speed(p.dx,p.max_dx)
-		
-		if collide_map(p,"left",1) then
-			p.dx=0
-		end
-	elseif p.dx>0 then
-	
-		p.dx=limit_speed(p.dx,p.max_dx)
-	
-		if collide_map(p,"right",1) then
-			p.dx=0
-		end
-	end
-	
-	--stop sliding
-	if p.sliding then
-		if abs(p.dx) <.2
-		or p.running then
-			p.dx=0
-			p.sliding=false
-		end
-	end
-	
-	p.x+=p.dx
-	p.y+=p.dy
-	
-	--limit player to map
-	if p.x<map_start then
-		p.x=map_start
-	end
-	if p.x>map_end-p.w then
-		p.x=map_end-p.w
-	end
-	
+
+end
+function player:draw()
+	spr(self.spr,self.x,self.y)
 end
 
-function p_animate()
-	if p.jumping then
-		p.sp=7
-	elseif p.falling then
-		p.sp=8
-	elseif p.sliding then
-		p.sp=9
-	elseif p.running then
-		if time()-p.anim>.1 then
-			p.anim=time()
-			p.sp+=1
-			if p.sp>6 then
-				p.sp=3				
-			end
-		end
-	--player idle
-	else
-		if time()-p.anim>.3 then
-			p.anim=time()
-			p.sp+=1
-			if p.sp>2 then
-				p.sp=1				
-			end
-		end
-	end
+--game loop
+function _init()
+	game1=game:new()
 end
 
+function _update()
+	game1:update()
+end
+
+function _draw()
+	game1:draw()
+	print('dy='..game1.world.player.dy)
+end
+
+--utils
 function limit_speed(num,m)
 	return mid(-m,num,m)
 end
@@ -296,7 +299,7 @@ ee2eee2eee2eee2ecc1ccc1ccc1ccc1c000000000000000000000000000000000000000000000000
 002ee200002ee200001cc100001cc100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 002ee200002ee200001cc100001cc100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __gff__
-0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003030303030300000000000000000000030303030000000000000000000000000101010100000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000f0f0f0f0f0f000000000000000000000f0f0f0f0000000000000000000000000101010100000000000000000000000000000000000000000000000000000000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __map__
 0000000000000000000000000000000000000000000000000000000000000000000000006263620000000000000000000000000000000000000000000000000062620000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -304,8 +307,8 @@ __map__
 0000000000000000000000000000000000000000000000000000000000000000000000006263620000000000000000000000000000000000000000000000626200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000000000000000000000000000000000000000000000000000000000000000007200720000000000000000000000000000000000000000000062620000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000000000000000000000000000000000000000000000000000000000000000006263620000000000000000000000000000000000000000006262000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-0000000000000000000000000000000000000000000000000000000000000000000000007200720000000000000000000000000000000000000000626200000000000000000000000000000000000000000000000000000000000000000000000000004441414342450000000000000000000000000000000000000000000000
-0000000000000000000000000000000000000000000000000000000000000000000000006263620000000000000000000000000000000000000062620000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000040000000000040000000000000000000000000000000000000000000000000007200720000000000000000000000000000000000000000626200000000000000000000000000000000000000000000000000000000000000000000000000004441414342450000000000000000000000000000000000000000000000
+0000004000000000000000000000000000000000000000000000000000000000000000006263620000000000000000000000000000000000000062620000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000000000000000000000000000000000000000000000000000000000000000007200720000000000000000000000000000000000006262000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004344000000
 0000000000000000000060000000000000000000000000000000000000000000000000006263620000000000000000000000000000000000626200000000000000000000000000000000000000000000000000000000000000000000000000000000000043404243450000000000000000000000000000000063005050000000
 0000006363630000000071000000000000000000000000000000000000000000000000007200720000000000000000000000000000000062620000000000000000000000000000000000000000000000000000000000000000000000000000000000000050505052504500000000000000630063004300430000005050000000
