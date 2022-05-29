@@ -16,19 +16,23 @@ function _init()
 		h=8,
 		flp=false,
 		mode=0,
-		mode_wait=false,
+		mode_rls=false,
+		punch_time=0,
+		punch_rls=false,
+		punch_del=.2,
+		punch_cool=.3,
 		dx=0,
 		dy=0,
 		max_dx=2,
 		max_dy=3,
-		acc=0.5,
+		acc=1,
 		boost=4,
 		anim=0,
 		running=false,
 		jumping=false,
 		falling=false,
-		sliding=false,
 		landed=false,
+		punching=false,
 	}
 	
 	gravity=0.3
@@ -61,7 +65,7 @@ function _draw()
 	cls()
 	map(0,0)
 	spr(p.sp,p.x,p.y,1,1,p.flp)
-	print(p.mode)
+	print(p.punching)
 end
 -->8
 --collisions
@@ -127,25 +131,28 @@ function p_update()
 		p.running=true
 		p.flp=false
 	end
-	if btnp(🅾️) and not p.mode_wait then
-		p.mode_wait=true
+	if btnp(🅾️) and not p.mode_rls then
+		p.mode_rls=true
 		p.mode+=1
 		if p.mode>2 then
 			p.mode=0		
 		end
 	end
 	if not btn(🅾️) then
-		p.mode_wait = false
+		p.mode_rls = false
 	end
-	
-	--slide
-	if p.running
-	and not btn(⬅️)
-	and not btn(➡️)
-	and not p.falling
-	and not p.jumping then
-		p.running=false
-		p.sliding=true
+	if btnp(❎) and not p.punch_rls then
+		p.punch_rls=true
+		p.punch_time=time()
+		p.punching=true
+	end
+	if time()-p.punch_time>p.punch_del then
+		p.punching=false
+	end
+	if not btn(❎)
+	and not p.punching
+	and time()-p.punch_time>p.punch_del+p.punch_cool then
+		p.punch_rls=false
 	end
 	
 	--jump
@@ -156,6 +163,8 @@ function p_update()
 		sfx(0)
 	end
 	
+	p.punch_del=.2
+
 	-- check col ⬆️ and ⬇️
 	if p.dy>0 then
 		p.falling=true
@@ -165,6 +174,9 @@ function p_update()
 		p.dy=limit_speed(p.dy,p.max_dy)
 		
 		if collide_map(p,"down",0) then
+			if p.dx<-1 or p.dx>1 then
+				p.punch_del=.5
+			end
 			p.landed=true
 			p.falling=false
 			p.dy=0
@@ -194,13 +206,11 @@ function p_update()
 		end
 	end
 	
-	--stop sliding
-	if p.sliding then
-		if abs(p.dx) <.2
-		or p.running then
-			p.dx=0
-			p.sliding=false
-		end
+	--slow'n'stop
+	if p.running and abs(p.dx)<.8 then
+		p.dx=0
+		p.running=false
+		p.punch_rls=false
 	end
 	
 	p.x+=p.dx
@@ -217,12 +227,21 @@ function p_update()
 end
 
 function p_animate()
+	hit_sfx=-1
 	if p.jumping then
-		p.sp=7
+		if p.punching then
+			p.sp=10
+			hit_sfx=1
+		else
+			p.sp=7
+		end
 	elseif p.falling then
-		p.sp=8
-	elseif p.sliding then
-		p.sp=9
+		if p.punching then
+			p.sp=10
+			hit_sfx=1
+		else
+			p.sp=8
+		end
 	elseif p.running then
 		if time()-p.anim>.1 then
 			p.anim=time()
@@ -230,6 +249,10 @@ function p_animate()
 			if p.sp>6 then
 				p.sp=3				
 			end
+		end
+		if p.punching then
+			p.sp=9
+			hit_sfx=2
 		end
 	--player idle
 	else
@@ -240,6 +263,15 @@ function p_animate()
 				p.sp=1				
 			end
 		end
+		if p.punching then
+			p.sp=10
+			hit_sfx=1
+		end
+	end
+	--punch sound
+	if time()-p.punch_time>.1
+	and time()-p.punch_time<.16 then
+		sfx(hit_sfx)
 	end
 	--modes
 	pal()
@@ -248,7 +280,7 @@ function p_animate()
 	elseif p.mode==1 then
 		pal(12,9)
 	elseif p.mode==2 then
-		pal(12,2)
+		pal(12,14)
 	end
 end
 
@@ -256,7 +288,7 @@ function limit_speed(num,m)
 	return mid(-m,num,m)
 end
 __gfx__
-0000000000cccc0001cccc0001ccccc0010cccc0c10cccc0c1ccccc001ccccc0cc0ccc10cc0000000ccccc000000000000000000000000000000000000000000
+0000000000cccc0001cccc0001ccccc0010cccc0c10cccc0c1ccccc001ccccc0cc0ccc10cc0000000cccc0000000000000000000000000000000000000000000
 0000000001fffff01c1ffff01c1fffff1c1fffff1c1fffff1c1fffff1c1fffff00cff1c1001ccc00cfffff000000000000000000000000000000000000000000
 007007001c176f6001f76f60010f76f6010f76f6010f76f6010f76f6c10f76f6000f761601c1fff00f76f6000000000000000000000000000000000000000000
 0007700001fffff004fffef0040fffef040fffef040fffef040fffef040fffef000fff4f00176f600fffef000000000000000000000000000000000000000000
@@ -342,3 +374,5 @@ __map__
 5150505051525050505053505250505050515052505050505053505150525051505150525050505050535051505250515051505250505050505350515052505150515052505050505053505150525051505150525050505050535051505250515051505250505050505350515052505150515052505050505053505150525051
 __sfx__
 0001000018050190501a0501b0501c0501e05020050220502405026050280502b0502d0502f050310503105000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000200003c6203c6203d6203c6103a610386103761035600316002d6002d600296002861026610246102261020610206103b6003b600000000000000000000002260000000000000000000000000000000000000
+000200002d6202d6202d6102e6102f6102f6102f610306202f6202e6202d6102b6102a61029610296102761025610236102161021600000000000000000000000000000000000000000000000000000000000000
