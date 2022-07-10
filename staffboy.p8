@@ -271,8 +271,8 @@ function p_animate()
 		end
 	end
 	--punch sound
-	if time()-p.punch_time>.1
-	and time()-p.punch_time<.16 then
+	if time()-p.punch_time>.07
+	and time()-p.punch_time<.12 then
 		sfx(hit_sfx)
 	end
 end
